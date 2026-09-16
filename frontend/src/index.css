@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "Space Mono", monospace;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-white text-black antialiased font-sans;
+  box-sizing: border-box;
+}
+
+/* Brutalist base overrides */
+* {
+  @apply border-black;
+}
+
+input, textarea, select, button {
+  @apply rounded-none focus:ring-0 focus:outline-none focus:ring-offset-0 font-mono;
+}
+
+.brutal-border {
+  @apply border-2 border-black;
+}
+
+.brutal-border-b {
+  @apply border-b-2 border-black;
+}
+
+.brutal-shadow {
+  box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
+}
+.brutal-shadow:active:not(:disabled) {
+  box-shadow: 0px 0px 0px 0px rgba(0,0,0,1);
+  transform: translate(4px, 4px);
+}
+
+.brutal-shadow-sm {
+  box-shadow: 2px 2px 0px 0px rgba(0,0,0,1);
+}
+
+.brutal-btn-primary {
+  @apply bg-[#eab308] text-black border-2 border-black font-bold uppercase tracking-widest text-[15px] py-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform hover:bg-[#facc15] active:translate-y-1 active:translate-x-1;
+}
+.brutal-btn-primary:active:not(:disabled) {
+  @apply shadow-none;
+}
+.brutal-btn-primary:disabled {
+  @apply opacity-50 cursor-not-allowed transform-none shadow-none translate-x-0 translate-y-0 border-dashed bg-slate-200 text-slate-500 hover:bg-slate-200;
+}
+
+.brutal-btn-secondary {
+  @apply bg-white text-black border-2 border-black font-bold uppercase tracking-widest text-sm py-2 px-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform hover:bg-black hover:text-white active:translate-y-1 active:translate-x-1;
+}
+.brutal-btn-secondary:active:not(:disabled) {
+  @apply shadow-none;
+}
+
+.brutal-input {
+  @apply w-full border-2 border-black bg-white p-3 text-[15px] font-mono shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:bg-[#fefce8] focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all;
+}
+
+/* Results Markdown Brutalism */
+.generated-doc {
+  @apply text-black text-[16px] leading-[1.5] font-mono;
+}
+.generated-doc > :first-child { margin-top: 0; }
+.generated-doc > :last-child { margin-bottom: 0; }
+
+.generated-doc h1 {
+  @apply text-[36px] leading-none font-bold tracking-tight text-black mb-6 mt-12 font-sans uppercase border-b-4 border-black pb-4;
+}
+.generated-doc h2 {
+  @apply text-[20px] font-bold uppercase tracking-widest text-black mt-10 mb-4 border-b-2 border-black pb-2;
+}
+.generated-doc h3 {
+  @apply text-[18px] font-bold text-black mt-8 mb-2 underline underline-offset-4 decoration-2;
+}
+.generated-doc p {
+  @apply my-5 text-black;
+}
+.generated-doc ul, .generated-doc ol {
+  @apply pl-6 my-5 space-y-3 marker:text-black;
+}
+.generated-doc ul {
+  list-style-type: square;
+}
+.generated-doc li {
+  @apply text-black;
+}
+.generated-doc strong {
+  @apply font-bold bg-black text-white px-1;
+}
+.generated-doc em {
+  @apply italic font-bold border-b-2 border-black;
+}
+.generated-doc a {
+  @apply text-black underline underline-offset-4 decoration-2 hover:bg-[#eab308] hover:text-black hover:decoration-4 transition-colors px-0.5;
+}
+.generated-doc hr {
+  @apply my-10 border-t-4 border-black border-dashed;
+}
+.generated-doc blockquote {
+  @apply border-l-4 border-black pl-4 my-6 italic bg-slate-100 py-3 font-sans font-bold text-lg;
+}

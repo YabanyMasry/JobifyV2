@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm install --prefix \"D:\\\\Programming\\\\Jobify\\\\backend\" 2>&1)",
+      "Bash(node server.js)",
+      "Bash(echo \"started backend pid=$!\")",
+      "Bash(curl -s http://localhost:8787/api/health)",
+      "Bash(curl -s -X POST http://localhost:8787/api/generate -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(python -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['content'][:1200]\\)\")",
+      "Bash(curl -s http://localhost:8787/api/health *)",
+      "Bash(node -e \"const d=require\\('/tmp/gen-out.json'\\); console.log\\(Object.keys\\(d\\)\\);\")",
+      "Bash(node -e \"const d=require\\('/tmp/gen-out.json'\\); console.log\\(d.cv.slice\\(0,700\\)\\);\")",
+      "Bash(node -e \"const d=require\\('/tmp/gen-out.json'\\); console.log\\(d.atsReport.slice\\(0,800\\)\\);\")",
+      "Bash(node -e \"const d=require\\('/tmp/gen-out.json'\\); console.log\\(d.coverLetter.slice\\(0,600\\)\\);\")"
+    ]
+  }
+}
