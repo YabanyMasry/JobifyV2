@@ -3,7 +3,7 @@ import { ProfileForm } from "./components/ProfileForm";
 import { ProfileSwitcher } from "./components/ProfileSwitcher";
 import { ResultsView } from "./components/ResultsView";
 import { ImportCvModal } from "./components/ImportCvModal";
-import { createProfile, loadStore, saveStore, uid } from "./lib/storage";
+import { createProfile, loadStore, saveStore, uid, exportStore, importStore } from "./lib/storage";
 import { generate, refine, type GeneratedBundle } from "./lib/api";
 import { profileDisplayName, type Profile } from "./types";
 
@@ -129,6 +129,23 @@ export default function App() {
     }
   }
 
+  function onExportData() {
+    exportStore({ profiles, activeId });
+  }
+
+  async function onImportData(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const store = await importStore(file);
+      setProfiles(store.profiles);
+      setActiveId(store.activeId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to import data");
+    }
+    e.target.value = "";
+  }
+
   function onBackToEditor() {
     setBundle(null);
     setRefineError(null);
@@ -202,12 +219,21 @@ export default function App() {
                   LOCAL_STORAGE_ACTIVE :: DATA_SECURE
                 </p>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
                 {!profileReady && (
                   <span className="text-xs text-white bg-black font-mono px-3 py-2 uppercase font-bold border-2 border-black">
                     [!] REQ: NAME + EMAIL
                   </span>
                 )}
+                <div className="flex items-center gap-2 border-2 border-black bg-white p-1 brutal-shadow-sm">
+                  <button onClick={onExportData} className="text-xs font-mono font-bold px-2 py-1 bg-[#eab308] hover:bg-black hover:text-[#eab308] transition-colors border-2 border-black">
+                    EXPORT_JSON
+                  </button>
+                  <label className="text-xs font-mono font-bold px-2 py-1 bg-[#eab308] hover:bg-black hover:text-[#eab308] transition-colors border-2 border-black cursor-pointer">
+                    IMPORT_JSON
+                    <input type="file" accept=".json" className="hidden" onChange={onImportData} />
+                  </label>
+                </div>
                 <button
                   onClick={() => setImportOpen(true)}
                   className="brutal-btn-secondary"

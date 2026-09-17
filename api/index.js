@@ -418,7 +418,11 @@ app.post("/api/refine", async (req, res) => {
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
-const PORT = process.env.PORT ?? 8787;
-app.listen(PORT, () => {
-  console.log(`jobify backend listening on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT ?? 8787;
+  app.listen(PORT, () => {
+    console.log(`jobify backend listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;

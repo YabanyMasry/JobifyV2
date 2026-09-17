@@ -77,3 +77,34 @@ export function loadStore(): ProfileStore {
 export function saveStore(store: ProfileStore): void {
   localStorage.setItem(STORE_KEY, JSON.stringify(store));
 }
+
+export function exportStore(store: ProfileStore): void {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(store, null, 2));
+  const dlAnchorElem = document.createElement('a');
+  dlAnchorElem.setAttribute("href", dataStr);
+  dlAnchorElem.setAttribute("download", `jobify-profiles-${new Date().toISOString().split('T')[0]}.json`);
+  dlAnchorElem.click();
+  dlAnchorElem.remove();
+}
+
+export function importStore(file: File): Promise<ProfileStore> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const raw = JSON.parse(e.target?.result as string);
+        const parsed = ensureShape(raw);
+        if (parsed) {
+          saveStore(parsed);
+          resolve(parsed);
+        } else {
+          reject(new Error("Invalid profile data format"));
+        }
+      } catch (err) {
+        reject(new Error("Failed to parse JSON"));
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsText(file);
+  });
+}
