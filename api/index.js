@@ -340,11 +340,36 @@ function parseSections(raw) {
 }
 
 async function runQuery(prompt) {
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
-  return response.text.trim();
+  try {
+    // Attempt with the primary model
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+    });
+    return response.text.trim();
+  } catch (error) {
+    // Check if the error is a 503 (Unavailable) or 429 (Too Many Requests)
+    const isRateLimitOrOverloaded = 
+      error.status === 429 || 
+      error.status === 503 || 
+      error?.status === 'UNAVAILABLE' ||
+      (error?.message && (error.message.includes("503") || error.message.includes("429")));
+
+    if (isRateLimitOrOverloaded) {
+      console.warn(`[runQuery] Primary model (${MODEL}) failed (overloaded/rate-limited). Falling back to Pro model...`);
+      
+      // Attempt with the fallback Pro model
+      const FALLBACK_MODEL = "gemini-1.5-pro"; // Adjust version if needed
+      const fallbackResponse = await ai.models.generateContent({
+        model: FALLBACK_MODEL,
+        contents: prompt,
+      });
+      return fallbackResponse.text.trim();
+    }
+
+    // Rethrow if it's a different error (e.g. 400 Bad Request)
+    throw error;
+  }
 }
 
 app.post("/api/generate", async (req, res) => {
