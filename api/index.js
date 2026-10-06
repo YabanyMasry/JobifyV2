@@ -8,7 +8,15 @@ app.use(cors());
 app.use(express.json({ limit: "5mb" }));
 
 const ai = new GoogleGenAI();
-const MODEL = "gemini-3.5-flash";
+// Tried in order. On 429 (quota), 503 (overloaded) or 404 (model unavailable),
+// the next model is used. Each model has its own free-tier quota.
+// All names verified via ai.models.list() for this API key.
+const MODELS = [
+  "gemini-3.5-flash",
+  "gemini-3-flash-preview",
+  "gemini-3.5-flash-lite",
+  "gemini-2.5-flash-lite",
+];
 
 const GENERATION_SYSTEM_PROMPT = `You are an expert CV writer and career consultant embedded in a CV generation tool. Your job is not to list what the user gives you — it is to craft a genuinely strong, personalised CV and a matching cover letter that make this specific person stand out for this specific role.
 
@@ -339,37 +347,28 @@ function parseSections(raw) {
   return result;
 }
 
+const RETRYABLE_STATUS = new Set([404, 429, 500, 503]);
+
+function isRetryable(err) {
+  if (RETRYABLE_STATUS.has(err?.status)) return true;
+  const msg = String(err?.message ?? "");
+  return /\b(404|429|500|503)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|NOT_FOUND/.test(msg);
+}
+
 async function runQuery(prompt) {
-  try {
-    // Attempt with the primary model
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: prompt,
-    });
-    return response.text.trim();
-  } catch (error) {
-    // Check if the error is a 503 (Unavailable) or 429 (Too Many Requests)
-    const isRateLimitOrOverloaded = 
-      error.status === 429 || 
-      error.status === 503 || 
-      error?.status === 'UNAVAILABLE' ||
-      (error?.message && (error.message.includes("503") || error.message.includes("429")));
-
-    if (isRateLimitOrOverloaded) {
-      console.warn(`[runQuery] Primary model (${MODEL}) failed (overloaded/rate-limited). Falling back to Pro model...`);
-      
-      // Attempt with the fallback Pro model
-      const FALLBACK_MODEL = "gemini-1.5-pro"; // Adjust version if needed
-      const fallbackResponse = await ai.models.generateContent({
-        model: FALLBACK_MODEL,
-        contents: prompt,
-      });
-      return fallbackResponse.text.trim();
+  let lastErr;
+  for (const model of MODELS) {
+    try {
+      const response = await ai.models.generateContent({ model, contents: prompt });
+      if (model !== MODELS[0]) console.warn(`[runQuery] served by fallback model ${model}`);
+      return response.text.trim();
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryable(err)) throw err;
+      console.warn(`[runQuery] ${model} failed (${err?.status ?? "?"}), trying next model...`);
     }
-
-    // Rethrow if it's a different error (e.g. 400 Bad Request)
-    throw error;
   }
+  throw lastErr;
 }
 
 app.post("/api/generate", async (req, res) => {
