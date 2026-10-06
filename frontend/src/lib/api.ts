@@ -7,14 +7,21 @@ export type GeneratedBundle = {
   editInstructions: string;
 };
 
+export type RoleTarget = {
+  role: string;
+  seniority?: string;
+  focus?: string;
+};
+
 export async function generate(
   profile: Profile,
   jobDescription: string,
+  target?: RoleTarget | null,
 ): Promise<GeneratedBundle> {
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ profile, jobDescription }),
+    body: JSON.stringify(target ? { profile, target } : { profile, jobDescription }),
   });
 
   if (!res.ok) {
@@ -30,11 +37,16 @@ export async function refine(
   jobDescription: string,
   previousBundle: GeneratedBundle,
   instruction: string,
+  target?: RoleTarget | null,
 ): Promise<GeneratedBundle> {
   const res = await fetch("/api/refine", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ profile, jobDescription, previousBundle, instruction }),
+    body: JSON.stringify(
+      target
+        ? { profile, target, previousBundle, instruction }
+        : { profile, jobDescription, previousBundle, instruction },
+    ),
   });
 
   if (!res.ok) {

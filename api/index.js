@@ -213,13 +213,41 @@ ${SECTION_MARKERS.editInstructions}
 ## Edit Instructions
 [Edit Instructions content as specified in Step 5]`;
 
-function buildPrompt({ profile, jobDescription }) {
+const ROLE_MODE_INSTRUCTIONS = `## ROLE TARGET MODE (NO SPECIFIC POSTING)
+
+The user has NOT provided a specific job posting. Instead they want a strong, reusable CV aimed at a ROLE CATEGORY in general (e.g. "Frontend Developer", "UI/UX Designer"). Adjust the steps above as follows:
+
+**Step 1 replacement — synthesise the market profile of the role:**
+- From your knowledge of current hiring for this role (at the given seniority, if provided), derive the 5–8 skills/qualifications that appear most often in real postings, plus common "nice to haves".
+- Assume a typical mid-sized company unless the user's focus notes say otherwise. Keep tone professional and broadly appealing.
+- Treat this synthesised profile as the "target job" for every following step.
+
+**CV:** Curate and frame the candidate's profile for this role category. Headline/summary should name the role directly. Prioritise the skills, projects, and experience that hiring managers for this role look for most.
+
+**ATS & Match Report:** Under "Keyword Match", list the most common keywords for this role across the market (not from a single posting) and whether each appears in the CV. Gap Analysis should point out commonly requested skills the candidate lacks. Match Score is how competitive the candidate is for typical postings for this role.
+
+**Cover Letter:** Write a reusable cover letter for this role. Use clear bracketed placeholders the user can fill per application: [Company Name], [Hiring Manager], and one sentence slot like [Why this company specifically — 1 sentence]. Everything else must be complete, specific to the candidate, and reference CV content by name. Keep it 3 paragraphs.
+
+**Edit Instructions:** Include a tip that pasting a specific job posting later will give a sharper, more targeted result.`;
+
+function describeTarget({ jobDescription, target }) {
+  if (target && typeof target === "object" && target.role) {
+    const lines = [`Role: ${target.role}`];
+    if (target.seniority) lines.push(`Seniority: ${target.seniority}`);
+    if (target.focus) lines.push(`Focus / preferences from the user: ${target.focus}`);
+    return { header: "=== TARGET ROLE (GENERAL — NO SPECIFIC POSTING) ===", body: lines.join("\n"), roleMode: true };
+  }
+  return { header: "=== TARGET JOB POSTING ===", body: jobDescription, roleMode: false };
+}
+
+function buildPrompt({ profile, jobDescription, target }) {
   const profileJson = JSON.stringify(profile, null, 2);
+  const t = describeTarget({ jobDescription, target });
 
   return `${GENERATION_SYSTEM_PROMPT}
 
 ---
-
+${t.roleMode ? `\n${ROLE_MODE_INSTRUCTIONS}\n\n---\n` : ""}
 ${OUTPUT_DELIMITERS_INSTRUCTIONS}
 
 ---
@@ -227,17 +255,18 @@ ${OUTPUT_DELIMITERS_INSTRUCTIONS}
 === CANDIDATE PROFILE (JSON) ===
 ${profileJson}
 
-=== TARGET JOB POSTING ===
-${jobDescription}`;
+${t.header}
+${t.body}`;
 }
 
-function buildRefinePrompt({ profile, jobDescription, previousBundle, instruction }) {
+function buildRefinePrompt({ profile, jobDescription, target, previousBundle, instruction }) {
   const profileJson = JSON.stringify(profile, null, 2);
+  const t = describeTarget({ jobDescription, target });
 
   return `${GENERATION_SYSTEM_PROMPT}
 
 ---
-
+${t.roleMode ? `\n${ROLE_MODE_INSTRUCTIONS}\n\n---\n` : ""}
 ## REFINEMENT MODE
 
 The user has already received the output below. They want a SPECIFIC change applied. Apply ONLY what they ask. Preserve everything else as-is unless changing it is necessary for consistency.
@@ -271,8 +300,23 @@ ${OUTPUT_DELIMITERS_INSTRUCTIONS}
 === CANDIDATE PROFILE (JSON) ===
 ${profileJson}
 
-=== TARGET JOB POSTING ===
-${jobDescription}`;
+${t.header}
+${t.body}`;
+}
+
+function validateTarget({ jobDescription, target }, minJdLength) {
+  if (target !== undefined && target !== null) {
+    if (typeof target !== "object" || typeof target.role !== "string" || target.role.trim().length < 2) {
+      return "target.role must be at least 2 characters";
+    }
+    return null;
+  }
+  if (!jobDescription || typeof jobDescription !== "string" || jobDescription.trim().length < minJdLength) {
+    return minJdLength > 0
+      ? `jobDescription must be at least ${minJdLength} characters`
+      : "jobDescription is required";
+  }
+  return null;
 }
 
 function parseSections(raw) {
@@ -304,17 +348,18 @@ async function runQuery(prompt) {
 }
 
 app.post("/api/generate", async (req, res) => {
-  const { profile, jobDescription } = req.body ?? {};
+  const { profile, jobDescription, target } = req.body ?? {};
 
   if (!profile || typeof profile !== "object") {
     return res.status(400).json({ error: "profile is required" });
   }
-  if (!jobDescription || typeof jobDescription !== "string" || jobDescription.trim().length < 20) {
-    return res.status(400).json({ error: "jobDescription must be at least 20 characters" });
+  const targetError = validateTarget({ jobDescription, target }, 20);
+  if (targetError) {
+    return res.status(400).json({ error: targetError });
   }
 
   try {
-    const raw = await runQuery(buildPrompt({ profile, jobDescription }));
+    const raw = await runQuery(buildPrompt({ profile, jobDescription, target }));
     const sections = parseSections(raw);
     res.json(sections);
   } catch (err) {
@@ -391,13 +436,14 @@ app.post("/api/import-cv", async (req, res) => {
 });
 
 app.post("/api/refine", async (req, res) => {
-  const { profile, jobDescription, previousBundle, instruction } = req.body ?? {};
+  const { profile, jobDescription, target, previousBundle, instruction } = req.body ?? {};
 
   if (!profile || typeof profile !== "object") {
     return res.status(400).json({ error: "profile is required" });
   }
-  if (!jobDescription || typeof jobDescription !== "string") {
-    return res.status(400).json({ error: "jobDescription is required" });
+  const targetError = validateTarget({ jobDescription, target }, 0);
+  if (targetError) {
+    return res.status(400).json({ error: targetError });
   }
   if (!previousBundle || typeof previousBundle !== "object" || !previousBundle.cv) {
     return res.status(400).json({ error: "previousBundle is required" });
@@ -407,7 +453,7 @@ app.post("/api/refine", async (req, res) => {
   }
 
   try {
-    const raw = await runQuery(buildRefinePrompt({ profile, jobDescription, previousBundle, instruction }));
+    const raw = await runQuery(buildRefinePrompt({ profile, jobDescription, target, previousBundle, instruction }));
     const sections = parseSections(raw);
     res.json(sections);
   } catch (err) {

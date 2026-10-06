@@ -4,10 +4,26 @@ import { ProfileSwitcher } from "./components/ProfileSwitcher";
 import { ResultsView } from "./components/ResultsView";
 import { ImportCvModal } from "./components/ImportCvModal";
 import { createProfile, loadStore, saveStore, uid, exportStore, importStore } from "./lib/storage";
-import { generate, refine, type GeneratedBundle } from "./lib/api";
+import { generate, refine, type GeneratedBundle, type RoleTarget } from "./lib/api";
 import { profileDisplayName, type Profile } from "./types";
 
 type Tab = "profile" | "generate";
+type GenMode = "posting" | "role";
+
+const ROLE_PRESETS = [
+  "Frontend Developer",
+  "React Engineer",
+  "UI/UX Designer",
+  "Product Designer",
+  "Full-Stack Developer",
+  "Backend Developer",
+  "Mobile Developer",
+  "Software Engineer",
+  "Data Analyst",
+  "DevOps Engineer",
+];
+
+const SENIORITY_LEVELS = ["Intern", "Junior", "Mid-Level", "Senior"];
 
 export default function App() {
   const initial = useMemo(() => loadStore(), []);
@@ -23,6 +39,11 @@ export default function App() {
   const [refining, setRefining] = useState(false);
   const [refineError, setRefineError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [genMode, setGenMode] = useState<GenMode>("posting");
+  const [role, setRole] = useState("");
+  const [seniority, setSeniority] = useState("");
+  const [focus, setFocus] = useState("");
+  const [usedTarget, setUsedTarget] = useState<RoleTarget | null>(null);
 
   useEffect(() => {
     saveStore({ profiles, activeId });
@@ -55,6 +76,11 @@ export default function App() {
       activeProfile.email.trim().length > 0,
     [activeProfile],
   );
+
+  const canGenerate =
+    !loading &&
+    !!profileReady &&
+    (genMode === "role" ? role.trim().length >= 2 : jobDescription.trim().length >= 20);
 
   function onCreateProfile() {
     const next = createProfile();
@@ -105,8 +131,17 @@ export default function App() {
     setError(null);
     setBundle(null);
     setRefineError(null);
+    const target: RoleTarget | null =
+      genMode === "role"
+        ? {
+            role: role.trim(),
+            seniority: seniority || undefined,
+            focus: focus.trim() || undefined,
+          }
+        : null;
     try {
-      const result = await generate(activeProfile, jobDescription);
+      const result = await generate(activeProfile, jobDescription, target);
+      setUsedTarget(target);
       setBundle(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "SYSTEM FAILURE: GENERATION ABORTED");
@@ -120,7 +155,7 @@ export default function App() {
     setRefining(true);
     setRefineError(null);
     try {
-      const result = await refine(activeProfile, jobDescription, bundle, instruction);
+      const result = await refine(activeProfile, jobDescription, bundle, instruction, usedTarget);
       setBundle(result);
     } catch (e) {
       setRefineError(e instanceof Error ? e.message : "SYSTEM FAILURE: REFINEMENT ABORTED");
@@ -156,7 +191,7 @@ export default function App() {
       <ResultsView
         bundle={bundle}
         candidateName={activeProfile.fullName}
-        company={company}
+        company={company || (usedTarget ? [usedTarget.seniority, usedTarget.role].filter(Boolean).join(" ") : "")}
         onBack={onBackToEditor}
         onRefine={onRefine}
         refining={refining}
@@ -252,11 +287,40 @@ export default function App() {
               <h2 className="text-5xl font-black uppercase mb-4">EXECUTE_GENERATION</h2>
               <p className="text-sm font-mono font-bold max-w-xl mx-auto bg-black text-white p-3 border-2 border-black">
                 TARGET_PROFILE: {profileDisplayName(activeProfile)}<br />
-                FEED JOB SPECS BELOW TO ASSEMBLE CV + LETTER
+                {genMode === "posting"
+                  ? "FEED JOB SPECS BELOW TO ASSEMBLE CV + LETTER"
+                  : "SELECT A ROLE TO ASSEMBLE A GENERAL-PURPOSE CV + LETTER"}
               </p>
             </div>
 
+            <div className="grid grid-cols-2 border-4 border-black mb-6 brutal-shadow-sm" role="tablist">
+              <button
+                id="mode-posting"
+                role="tab"
+                aria-selected={genMode === "posting"}
+                onClick={() => setGenMode("posting")}
+                className={`px-4 py-3 font-mono font-bold uppercase text-sm transition-colors ${
+                  genMode === "posting" ? "bg-black text-[#eab308]" : "bg-white text-black hover:bg-[#eab308]"
+                }`}
+              >
+                MODE_A :: SPECIFIC_POSTING
+              </button>
+              <button
+                id="mode-role"
+                role="tab"
+                aria-selected={genMode === "role"}
+                onClick={() => setGenMode("role")}
+                className={`px-4 py-3 font-mono font-bold uppercase text-sm border-l-4 border-black transition-colors ${
+                  genMode === "role" ? "bg-black text-[#eab308]" : "bg-white text-black hover:bg-[#eab308]"
+                }`}
+              >
+                MODE_B :: GENERAL_ROLE
+              </button>
+            </div>
+
             <div className="border-4 border-black bg-white p-8 space-y-6 brutal-shadow">
+              {genMode === "posting" && (
+              <>
               <div>
                 <label className="block text-lg font-bold uppercase mb-2">
                   TARGET_COMPANY_NAME
@@ -287,6 +351,103 @@ export default function App() {
                   <span>MIN: 20</span>
                 </p>
               </div>
+              </>
+              )}
+
+              {genMode === "role" && (
+                <>
+                  <div>
+                    <label htmlFor="role-input" className="block text-lg font-bold uppercase mb-2">
+                      TARGET_ROLE
+                      <span className="text-sm font-normal ml-3 font-mono bg-black text-white px-2 py-0.5">
+                        PICK OR TYPE
+                      </span>
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {ROLE_PRESETS.map((r) => {
+                        const active = role.trim().toLowerCase() === r.toLowerCase();
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setRole(r)}
+                            className={`text-xs font-mono font-bold uppercase border-2 border-black px-2 py-1 transition-colors ${
+                              active ? "bg-black text-[#eab308]" : "bg-white text-black hover:bg-[#eab308]"
+                            }`}
+                          >
+                            {r}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <input
+                      id="role-input"
+                      type="text"
+                      className="brutal-input text-lg"
+                      value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                      placeholder="E.G. MOTION DESIGNER, VUE DEVELOPER..."
+                    />
+                  </div>
+
+                  <div>
+                    <span className="block text-lg font-bold uppercase mb-2">
+                      SENIORITY
+                      <span className="text-sm font-normal ml-3 font-mono bg-black text-white px-2 py-0.5">OPTIONAL</span>
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 border-2 border-black">
+                      {SENIORITY_LEVELS.map((s, i) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setSeniority(seniority === s ? "" : s)}
+                          className={`px-3 py-2 font-mono font-bold uppercase text-sm transition-colors ${
+                            i > 0 ? "sm:border-l-2 border-black" : ""
+                          } ${seniority === s ? "bg-black text-[#eab308]" : "bg-white text-black hover:bg-[#eab308]"}`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="focus-input" className="block text-lg font-bold uppercase mb-2">
+                      FOCUS_NOTES
+                      <span className="text-sm font-normal ml-3 font-mono bg-black text-white px-2 py-0.5">OPTIONAL</span>
+                    </label>
+                    <textarea
+                      id="focus-input"
+                      rows={3}
+                      className="brutal-input"
+                      value={focus}
+                      onChange={(e) => setFocus(e.target.value)}
+                      placeholder="[ E.G. EMPHASIZE TYPESCRIPT + DESIGN SYSTEMS, TARGETING STARTUPS, REMOTE ]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-lg font-bold uppercase mb-2">
+                      LABEL
+                      <span className="text-sm font-normal ml-3 font-mono bg-black text-white px-2 py-0.5">
+                        OPTIONAL · USED_FOR_FILENAME
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      className="brutal-input text-lg"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      placeholder={role ? role.toUpperCase().replace(/\s+/g, "_") : "DEFAULTS_TO_ROLE_NAME"}
+                    />
+                  </div>
+
+                  <p className="text-xs font-mono font-bold uppercase border-l-4 border-[#eab308] pl-3">
+                    OUTPUT TARGETS TYPICAL MARKET REQUIREMENTS FOR THIS ROLE. COVER LETTER WILL INCLUDE
+                    [PLACEHOLDERS] TO FILL PER APPLICATION.
+                  </p>
+                </>
+              )}
 
               {error && (
                 <div className="border-4 border-black bg-red-600 text-white px-4 py-3 font-mono font-bold uppercase brutal-shadow-sm">
@@ -296,7 +457,7 @@ export default function App() {
 
               <button
                 onClick={onGenerate}
-                disabled={loading || jobDescription.trim().length < 20 || !profileReady}
+                disabled={!canGenerate}
                 className="w-full brutal-btn-primary text-xl flex items-center justify-center gap-4 group"
               >
                 {loading ? (
