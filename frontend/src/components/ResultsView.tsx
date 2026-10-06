@@ -222,7 +222,37 @@ function DocCard({
         </div>
       </div>
       <article ref={articleRef} className="generated-doc px-6 py-8 sm:px-12 sm:py-12 bg-white">
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <ReactMarkdown
+          components={{
+            a: ({ node, href, children, ...props }) => {
+              if (!href) return <a {...props}>{children}</a>;
+              const displayUrl = href.replace(/^(mailto|tel):/, "");
+              
+              let text = "";
+              if (typeof children === "string") text = children;
+              else if (Array.isArray(children)) text = children.join("");
+
+              const isGeneric = /^(linkedin|github|portfolio|website|email|resume|cv|link)$/i.test(text.trim());
+              const isAlreadyUrl = text.includes("http") || text.includes(displayUrl) || text.includes("www.");
+
+              if (isGeneric || isAlreadyUrl) {
+                return (
+                  <a href={href} {...props} className="break-all">
+                    {displayUrl}
+                  </a>
+                );
+              }
+
+              return (
+                <a href={href} {...props}>
+                  {children} <span className="break-all">({displayUrl})</span>
+                </a>
+              );
+            },
+          }}
+        >
+          {content}
+        </ReactMarkdown>
       </article>
     </section>
   );
