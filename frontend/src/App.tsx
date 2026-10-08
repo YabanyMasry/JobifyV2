@@ -3,11 +3,12 @@ import { ProfileForm } from "./components/ProfileForm";
 import { ProfileSwitcher } from "./components/ProfileSwitcher";
 import { ResultsView } from "./components/ResultsView";
 import { ImportCvModal } from "./components/ImportCvModal";
+import { ChatView } from "./components/ChatView";
 import { createProfile, loadStore, saveStore, uid, exportStore, importStore } from "./lib/storage";
 import { generate, refine, type GeneratedBundle, type RoleTarget } from "./lib/api";
 import { profileDisplayName, type Profile } from "./types";
 
-type Tab = "profile" | "generate";
+type Tab = "profile" | "generate" | "chat";
 type GenMode = "posting" | "role";
 
 const ROLE_PRESETS = [
@@ -100,6 +101,7 @@ export default function App() {
       projects: activeProfile.projects.map((x) => ({ ...x, id: uid() })),
       certifications: activeProfile.certifications.map((x) => ({ ...x, id: uid() })),
       languages: activeProfile.languages.map((x) => ({ ...x, id: uid() })),
+      background: (activeProfile.background ?? []).map((x) => ({ ...x, id: uid() })),
     };
     setProfiles((prev) => [...prev, dup]);
     setActiveId(dup.id);
@@ -121,7 +123,14 @@ export default function App() {
       setProfiles((prev) => [...prev, next]);
       setActiveId(next.id);
     } else if (activeProfile) {
-      setActiveProfile({ ...imported, id: activeProfile.id, label: activeProfile.label });
+      // A CV never contains the personal dossier — keep the existing one.
+      setActiveProfile({
+        ...imported,
+        id: activeProfile.id,
+        label: activeProfile.label,
+        background: activeProfile.background ?? [],
+        aboutMe: activeProfile.aboutMe ?? "",
+      });
     }
   }
 
@@ -236,6 +245,13 @@ export default function App() {
                 disabled={!profileReady}
               >
                 02. GENERATOR
+              </TabButton>
+              <TabButton
+                active={tab === "chat"}
+                onClick={() => setTab("chat")}
+                disabled={!profileReady}
+              >
+                03. AI_CHAT
               </TabButton>
             </nav>
           </div>
@@ -483,6 +499,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {tab === "chat" && <ChatView key={activeProfile.id} profile={activeProfile} />}
       </main>
 
       <ImportCvModal

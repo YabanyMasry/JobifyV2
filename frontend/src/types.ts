@@ -41,6 +41,26 @@ export type Language = {
   level: LanguageLevel;
 };
 
+export const BACKGROUND_CATEGORIES = [
+  "High School",
+  "Activities",
+  "Awards",
+  "Volunteering",
+  "Interests",
+  "Personal",
+  "Other",
+] as const;
+export type BackgroundCategory = (typeof BACKGROUND_CATEGORIES)[number];
+
+/** Life context outside projects/experience. Used by AI chat only — never sent to CV generation. */
+export type BackgroundEntry = {
+  id: string;
+  category: BackgroundCategory;
+  title: string;
+  period?: string;
+  details: string;
+};
+
 export type Profile = {
   id: string;
   label: string;
@@ -60,6 +80,8 @@ export type Profile = {
   education: Education[];
   projects: Project[];
   certifications: Certification[];
+  background: BackgroundEntry[];
+  aboutMe: string;
 };
 
 export const emptyProfile = (): Profile => ({
@@ -81,6 +103,8 @@ export const emptyProfile = (): Profile => ({
   education: [],
   projects: [],
   certifications: [],
+  background: [],
+  aboutMe: "",
 });
 
 export function profileDisplayName(p: Profile): string {

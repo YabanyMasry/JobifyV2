@@ -107,3 +107,26 @@ input, textarea, select, button {
 .generated-doc blockquote {
   @apply border-l-4 border-black pl-4 my-6 italic bg-slate-100 py-3 font-sans font-bold text-lg;
 }
+
+/* Chat replies — compact variant of .generated-doc */
+.chat-doc {
+  @apply text-black text-[14px] leading-[1.6] font-mono;
+}
+.chat-doc > :first-child { margin-top: 0; }
+.chat-doc > :last-child { margin-bottom: 0; }
+.chat-doc p { @apply my-3; }
+.chat-doc h1, .chat-doc h2, .chat-doc h3 {
+  @apply font-sans font-bold uppercase tracking-wide mt-5 mb-2 border-b-2 border-black pb-1;
+}
+.chat-doc h1 { @apply text-lg; }
+.chat-doc h2, .chat-doc h3 { @apply text-base; }
+.chat-doc ul, .chat-doc ol { @apply pl-5 my-3 space-y-1.5; }
+.chat-doc ul { list-style-type: square; }
+.chat-doc ol { list-style-type: decimal; }
+.chat-doc strong { @apply font-bold bg-black text-white px-1; }
+.chat-doc em { @apply italic font-bold; }
+.chat-doc code { @apply bg-[#fefce8] border border-black px-1 text-[13px]; }
+.chat-doc pre { @apply bg-black text-white p-3 my-3 overflow-x-auto border-2 border-black; }
+.chat-doc pre code { @apply bg-transparent border-0 p-0 text-white; }
+.chat-doc blockquote { @apply border-l-4 border-[#eab308] pl-3 my-3 bg-slate-100 py-2; }
+.chat-doc a { @apply underline underline-offset-4 decoration-2 hover:bg-[#eab308]; }

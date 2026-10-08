@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { Profile, Experience, Education, Project, Certification, Language, LanguageLevel } from "../types";
-import { LANGUAGE_LEVELS } from "../types";
+import type { Profile, Experience, Education, Project, Certification, Language, LanguageLevel, BackgroundEntry, BackgroundCategory } from "../types";
+import { LANGUAGE_LEVELS, BACKGROUND_CATEGORIES } from "../types";
 import { uid } from "../lib/storage";
 
 type Props = {
@@ -192,6 +192,59 @@ export function ProfileForm({ profile, onChange }: Props) {
           </div>
         )}
       />
+
+      <div className="border-t-4 border-dashed border-black pt-4">
+        <p className="inline-block font-mono text-xs font-bold uppercase bg-black text-[#eab308] px-3 py-1 border-2 border-black">
+          :: AI_CHAT_CONTEXT — SECTIONS BELOW ARE EXCLUDED FROM CV GENERATION
+        </p>
+      </div>
+
+      <Repeater
+        title="PERSONAL_DOSSIER"
+        note="HIGH SCHOOL, CLUBS, AWARDS, VOLUNTEERING, HOBBIES, LIFE EVENTS. ANYTHING THE CHAT SHOULD KNOW ABOUT YOU."
+        items={profile.background ?? []}
+        onChange={(v) => set("background", v)}
+        empty={(): BackgroundEntry => ({ id: uid(), category: "High School", title: "", period: "", details: "" })}
+        render={(item, update) => (
+          <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr_180px] gap-4">
+            <Field label="CATEGORY">
+              <select
+                className={inputCls}
+                value={item.category}
+                onChange={(e) => update({ ...item, category: e.target.value as BackgroundCategory })}
+              >
+                {BACKGROUND_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c.toUpperCase()}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="TITLE">
+              <input className={inputCls} value={item.title} onChange={(e) => update({ ...item, title: e.target.value })} placeholder="E.G. ROBOTICS CLUB CAPTAIN" />
+            </Field>
+            <Field label="PERIOD">
+              <input className={inputCls} value={item.period ?? ""} onChange={(e) => update({ ...item, period: e.target.value })} placeholder="2016 — 2019" />
+            </Field>
+            <div className="sm:col-span-3">
+              <Field label="DETAILS">
+                <textarea className={inputCls} rows={3} value={item.details} onChange={(e) => update({ ...item, details: e.target.value })} placeholder="WHAT HAPPENED, WHAT YOU DID, WHY IT MATTERS" />
+              </Field>
+            </div>
+          </div>
+        )}
+      />
+
+      <section className={sectionCls}>
+        <div className={sectionTitleWrapper}>
+          <h3 className={sectionTitle}>ABOUT_ME :: FREEFORM</h3>
+        </div>
+        <textarea
+          className={inputCls}
+          rows={6}
+          value={profile.aboutMe ?? ""}
+          onChange={(e) => set("aboutMe", e.target.value)}
+          placeholder="[ GOALS, VALUES, WORK STYLE, WHY YOU GOT INTO YOUR FIELD, THINGS YOU'D MENTION IN AN INTERVIEW... ]"
+        />
+      </section>
     </div>
   );
 }
@@ -339,12 +392,14 @@ type RepeaterItem = { id: string };
 
 function Repeater<T extends RepeaterItem>({
   title,
+  note,
   items,
   onChange,
   empty,
   render,
 }: {
   title: string;
+  note?: string;
   items: T[];
   onChange: (v: T[]) => void;
   empty: () => T;
@@ -355,11 +410,12 @@ function Repeater<T extends RepeaterItem>({
       <div className={sectionTitleWrapper}>
         <h3 className={sectionTitle}>{title}</h3>
       </div>
-      <div className="flex justify-end mb-6">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        {note ? <p className="text-xs font-mono font-bold uppercase border-l-4 border-[#eab308] pl-3 pt-1">{note}</p> : <span />}
         <button
           type="button"
           onClick={() => onChange([...items, empty()])}
-          className="brutal-btn-secondary !py-1 !px-3"
+          className="brutal-btn-secondary !py-1 !px-3 shrink-0"
         >
           + ADD_ENTRY
         </button>

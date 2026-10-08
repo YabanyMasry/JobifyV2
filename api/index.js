@@ -355,11 +355,11 @@ function isRetryable(err) {
   return /\b(404|429|500|503)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|NOT_FOUND/.test(msg);
 }
 
-async function runQuery(prompt) {
+async function runQuery(contents, config) {
   let lastErr;
   for (const model of MODELS) {
     try {
-      const response = await ai.models.generateContent({ model, contents: prompt });
+      const response = await ai.models.generateContent({ model, contents, ...(config ? { config } : {}) });
       if (model !== MODELS[0]) console.warn(`[runQuery] served by fallback model ${model}`);
       return response.text.trim();
     } catch (err) {
@@ -483,6 +483,68 @@ app.post("/api/refine", async (req, res) => {
   } catch (err) {
     console.error("[refine] error:", err);
     res.status(500).json({ error: err?.message ?? "refinement failed" });
+  }
+});
+
+function buildChatSystemPrompt(profile) {
+  const name = profile.fullName?.trim() || "the user";
+  const profileJson = JSON.stringify(profile, null, 2);
+  return `You are a personal career assistant embedded in Jobify. You are talking directly with ${name} — the owner of the profile below. You know their entire professional history AND their personal background.
+
+## YOUR KNOWLEDGE
+The JSON below is everything ${name} has recorded about themselves:
+- Career data: summary, skills, languages, experience, education, projects, certifications.
+- "background": life context outside work — high school, activities, awards, volunteering, interests, personal notes. Each entry has a category, title, optional period and details.
+- "aboutMe": free-form notes they wrote about themselves.
+Treat this as ground truth. Connect dots across it (e.g. a high-school robotics club explains an interest in embedded systems).
+
+## WHAT YOU HELP WITH
+- Answering questions about their own history ("when did I start at X?", "which projects used React?").
+- Interview prep: behavioural answers in STAR format grounded in real entries, "tell me about yourself", strengths/weaknesses, mock questions.
+- Writing: bios, LinkedIn About sections, intros, emails, personal statements, short answers for application forms.
+- Career strategy: positioning, gaps, which roles fit, what to learn next.
+
+## RULES
+- Address the user as "you". When they ask you to write something in their voice (bio, answer, statement), write it in first person as them.
+- Never invent facts, dates, numbers, employers or achievements. If something isn't in the profile, say so plainly and ask them for it, or offer a clearly marked [placeholder].
+- Be direct and concise. No filler, no clichés ("passionate", "results-driven", "team player").
+- Use Markdown when it helps (short lists, bold for key points). Keep answers tight unless they ask for something long.
+- Today's date is ${new Date().toISOString().slice(0, 10)}.
+
+=== PROFILE (JSON) ===
+${profileJson}`;
+}
+
+const MAX_CHAT_TURNS = 40;
+
+app.post("/api/chat", async (req, res) => {
+  const { profile, messages } = req.body ?? {};
+
+  if (!profile || typeof profile !== "object") {
+    return res.status(400).json({ error: "profile is required" });
+  }
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "messages must be a non-empty array" });
+  }
+  const valid = messages.every(
+    (m) => m && (m.role === "user" || m.role === "model") && typeof m.text === "string" && m.text.trim().length > 0,
+  );
+  if (!valid || messages[messages.length - 1].role !== "user") {
+    return res.status(400).json({ error: "invalid messages; last message must be from user" });
+  }
+
+  // Keep context bounded; history must start on a user turn for Gemini.
+  let history = messages.slice(-MAX_CHAT_TURNS);
+  while (history.length && history[0].role !== "user") history = history.slice(1);
+
+  const contents = history.map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
+
+  try {
+    const reply = await runQuery(contents, { systemInstruction: buildChatSystemPrompt(profile) });
+    res.json({ reply });
+  } catch (err) {
+    console.error("[chat] error:", err);
+    res.status(500).json({ error: err?.message ?? "chat failed" });
   }
 });
 
