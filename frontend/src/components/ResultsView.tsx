@@ -21,6 +21,14 @@ const REFINE_EXAMPLES = [
   "EMPHASIZE_TYPESCRIPT_USAGE",
 ];
 
+const COVER_LETTER_REFINE_EXAMPLES = [
+  "CONDENSE_TO_3_PARAGRAPHS",
+  "MAKE_MORE_CONVERSATIONAL",
+  "MAKE_MORE_FORMAL",
+  "EMPHASIZE_STRONGEST_ACHIEVEMENT",
+  "DEEPEN_COMPANY_HOOK",
+];
+
 export function ResultsView({
   bundle,
   candidateName,
@@ -31,8 +39,11 @@ export function ResultsView({
   refineError,
 }: Props) {
   const [instruction, setInstruction] = useState("");
+  const isCoverLetterOnly = bundle.docType === "cover-letter" || (!bundle.cv && !!bundle.coverLetter);
   const score = extractScore(bundle.atsReport);
   const scoreSummary = extractScoreSummary(bundle.atsReport);
+
+  const macros = isCoverLetterOnly ? COVER_LETTER_REFINE_EXAMPLES : REFINE_EXAMPLES;
 
   const submitRefine = async () => {
     const value = instruction.trim();
@@ -53,6 +64,11 @@ export function ResultsView({
           </button>
           <div className="flex-1 text-center font-bold uppercase tracking-widest text-sm hidden sm:block">
             {company ? `TARGET :: ${company}` : "TARGET :: UNKNOWN"}
+            {isCoverLetterOnly && (
+              <span className="ml-3 text-xs bg-[#eab308] text-black px-2 py-0.5 font-mono">
+                COVER_LETTER_ONLY
+              </span>
+            )}
           </div>
           {score ? <ScoreBadge score={score} /> : <div className="w-16" />}
         </div>
@@ -70,32 +86,70 @@ export function ResultsView({
           </div>
         )}
 
-        <SectionLabel
-          eyebrow="OUTPUT_BUFFER"
-          title="COMPILED_DOCUMENTS"
-          description="REVIEW PAYLOAD. DOWNLOAD OR SUBMIT REFINEMENT COMMANDS BELOW."
-        />
+        {isCoverLetterOnly ? (
+          <>
+            <SectionLabel
+              eyebrow="OUTPUT_BUFFER"
+              title="TAILORED_COVER_LETTER"
+              description="COMPILED FOR YOUR TARGET ROLE USING YOUR EXISTING CV AS EVIDENCE."
+            />
 
-        <DocCard
-          title="CURRICULUM_VITAE"
-          content={bundle.cv}
-          kind="cv"
-          candidateName={candidateName}
-          company={company}
-        />
+            <DocCard
+              title="COVER_LETTER"
+              content={bundle.coverLetter}
+              kind="cover-letter"
+              candidateName={candidateName}
+              company={company}
+            />
 
-        <DocCard
-          title="COVER_LETTER"
-          content={bundle.coverLetter}
-          kind="cover-letter"
-          candidateName={candidateName}
-          company={company}
-        />
+            {(bundle.existingCv || (bundle.cv && bundle.cv.trim().length > 0)) && (
+              <details className="border-4 border-black bg-white brutal-shadow group mb-12">
+                <summary className="cursor-pointer px-6 py-4 font-black uppercase text-xl text-black hover:bg-[#eab308] select-none flex items-center justify-between transition-colors">
+                  <span>REFERENCED_SOURCE_CV [READ_ONLY]</span>
+                  <span className="text-black font-bold group-open:rotate-180 transition-transform" aria-hidden>
+                    ▼
+                  </span>
+                </summary>
+                <div className="generated-doc px-6 py-8 sm:px-12 sm:py-8 text-black border-t-4 border-black whitespace-pre-wrap font-mono text-xs max-h-96 overflow-y-auto">
+                  {bundle.existingCv || bundle.cv}
+                </div>
+              </details>
+            )}
+          </>
+        ) : (
+          <>
+            <SectionLabel
+              eyebrow="OUTPUT_BUFFER"
+              title="COMPILED_DOCUMENTS"
+              description="REVIEW PAYLOAD. DOWNLOAD OR SUBMIT REFINEMENT COMMANDS BELOW."
+            />
+
+            <DocCard
+              title="CURRICULUM_VITAE"
+              content={bundle.cv || ""}
+              kind="cv"
+              candidateName={candidateName}
+              company={company}
+            />
+
+            <DocCard
+              title="COVER_LETTER"
+              content={bundle.coverLetter}
+              kind="cover-letter"
+              candidateName={candidateName}
+              company={company}
+            />
+          </>
+        )}
 
         <SectionLabel
           eyebrow="ANALYSIS_BUFFER"
           title="ATS_MATCH_REPORT"
-          description="RAW SCORING AND GAP ANALYSIS OF THE PROVIDED JOB SPECS."
+          description={
+            isCoverLetterOnly
+              ? "ALIGNMENT SCORING OF YOUR CV & COVER LETTER AGAINST THE JOB SPECS."
+              : "RAW SCORING AND GAP ANALYSIS OF THE PROVIDED JOB SPECS."
+          }
         />
 
         <AtsCard content={bundle.atsReport} />
@@ -108,7 +162,7 @@ export function ResultsView({
           {!refining && (
             <div className="flex flex-wrap gap-2 mb-4 hidden sm:flex">
               <span className="text-[#eab308] font-bold text-xs uppercase self-center mr-2">QUICK_MACROS:</span>
-              {REFINE_EXAMPLES.map((ex) => (
+              {macros.map((ex) => (
                 <button
                   key={ex}
                   onClick={() => setInstruction(ex)}
@@ -131,7 +185,7 @@ export function ResultsView({
                 }
               }}
               disabled={refining}
-              placeholder="> ENTER_REFINEMENT_COMMAND"
+              placeholder={isCoverLetterOnly ? "> ENTER_COVER_LETTER_REFINEMENT_COMMAND" : "> ENTER_REFINEMENT_COMMAND"}
               className="flex-1 border-4 border-white bg-black text-white px-4 py-3 text-lg focus:outline-none focus:border-[#eab308] focus:bg-[#111] disabled:opacity-50 placeholder:text-gray-500 font-mono"
             />
             <button

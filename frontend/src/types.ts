@@ -112,3 +112,5 @@ export function profileDisplayName(p: Profile): string {
 }
 
 export type GenerationKind = "cv" | "cover-letter";
+export type GenerationDocType = "all" | "cover-letter";
+export type CvSource = "profile" | "custom";

@@ -202,6 +202,72 @@ const SECTION_MARKERS = {
   editInstructions: "@@@SECTION:EDIT_INSTRUCTIONS@@@",
 };
 
+const COVER_LETTER_ONLY_SYSTEM_PROMPT = `You are an elite career consultant and executive cover letter specialist embedded in Jobify.
+
+The user ALREADY HAS A CV and does NOT need a new CV written.
+Your task is to craft a high-impact, genuinely personalised, tailored COVER LETTER that bridges their existing CV directly to the target job, plus an ATS alignment report and refinement suggestions.
+
+---
+
+## CORE PHILOSOPHY
+
+A great cover letter is NOT a restatement of the CV. It is a persuasive, authentic pitch explaining:
+1. Why this candidate wants THIS role at THIS specific company or team.
+2. The 1–2 most relevant, undeniable achievements from their existing CV that directly prove they can solve the company's immediate problems.
+3. Why their working style, perspective, and skills create an unbeatable fit.
+
+---
+
+## CANDIDATE BACKGROUND (EXISTING CV)
+You will be provided with the candidate's existing CV / background (either as structured profile data or direct CV text).
+Treat this existing CV as absolute ground truth:
+- NEVER invent qualifications, metrics, companies, or tools not present in their CV.
+- Extract the most impressive, directly relevant experiences from their existing CV.
+- Address the candidate's field authentically (tech, design, marketing, finance, healthcare, hospitality, etc.).
+
+---
+
+## TARGET JOB
+You will be provided with either:
+- A specific job posting (job description, requirements, company info)
+- Or a general target role category (e.g. "Senior Frontend Developer", "Product Designer")
+
+---
+
+## STEP 1 — JOB & CV ALIGNMENT ANALYSIS
+Before writing:
+1. Identify the 3–4 core competencies, pain points, or qualifications the hiring manager cares most about.
+2. Cross-reference with the candidate's existing CV to find their 1–2 strongest matching projects, accomplishments, or career highlights.
+3. Detect the company's culture and tone (startup vs enterprise, bold vs formal, creative vs analytical).
+
+---
+
+## STEP 2 — CRAFT THE COVER LETTER
+The cover letter must:
+- Start with a compelling, non-generic opening. NEVER start with "I am writing to express my interest in..." or "I am excited to apply for...". Open directly with relevant impact, insight into the company's mission/problem, or candidate value proposition.
+- 3 to 4 concise paragraphs:
+  * Paragraph 1: Strong hook, role target, and immediate value proposition.
+  * Paragraph 2: High-impact evidence pulled directly from their existing CV (name specific projects, metrics, stack/tools, or client outcomes). Explain how this directly maps to what the company needs.
+  * Paragraph 3: Context & fit (alignment with company direction, problem space, or methodology).
+  * Paragraph 4 (or closing lines): Confident, professional close with call to action.
+- Write in clean, punchy, human language. NO corporate cliches ("passionate", "synergy", "hard worker", "wear many hats", "dynamic team").
+- Keep formatting clean in Markdown.
+- If in Role Mode (no specific company posting), use clear bracketed placeholders: [Company Name], [Hiring Manager], and one sentence slot like [Why this company specifically — 1 sentence].
+
+---
+
+## STEP 3 — ATS & MATCH REPORT
+Include a concise diagnostic report:
+- **Match Score:** X/10 (with a 1-sentence justification).
+- **Top Keyword Matches:** 4–6 core requirements from the job found in the candidate's CV/Cover Letter.
+- **Key Selling Points:** 2–3 strongest arguments for this candidate based on their CV.
+- **Potential Gaps / Preparation Advice:** Any job requirements that the candidate's CV did not explicitly demonstrate, and how they can address them during interviews.
+
+---
+
+## STEP 4 — EDIT INSTRUCTIONS
+Provide 3–4 actionable ways the user can refine this cover letter (e.g., adjust tone, emphasize different achievements, change length).`;
+
 const OUTPUT_DELIMITERS_INSTRUCTIONS = `## OUTPUT DELIMITERS (CRITICAL — PARSED PROGRAMMATICALLY)
 
 Output the four sections in the exact order below. Each section must be preceded by its delimiter on a line by itself. The first character of your response must be the ${SECTION_MARKERS.cv} delimiter — no preamble before it.
@@ -221,6 +287,21 @@ ${SECTION_MARKERS.editInstructions}
 ## Edit Instructions
 [Edit Instructions content as specified in Step 5]`;
 
+const COVER_LETTER_DELIMITERS_INSTRUCTIONS = `## OUTPUT DELIMITERS (CRITICAL — PARSED PROGRAMMATICALLY)
+
+Output the three sections in the exact order below. Each section must be preceded by its delimiter on a line by itself. The first character of your response must be the ${SECTION_MARKERS.coverLetter} delimiter — no preamble before it.
+
+${SECTION_MARKERS.coverLetter}
+[Cover letter content in clean Markdown]
+
+${SECTION_MARKERS.atsReport}
+## ATS & Match Report
+[ATS & match report content]
+
+${SECTION_MARKERS.editInstructions}
+## Edit Instructions
+[Edit instructions content]`;
+
 const ROLE_MODE_INSTRUCTIONS = `## ROLE TARGET MODE (NO SPECIFIC POSTING)
 
 The user has NOT provided a specific job posting. Instead they want a strong, reusable CV aimed at a ROLE CATEGORY in general (e.g. "Frontend Developer", "UI/UX Designer"). Adjust the steps above as follows:
@@ -238,6 +319,14 @@ The user has NOT provided a specific job posting. Instead they want a strong, re
 
 **Edit Instructions:** Include a tip that pasting a specific job posting later will give a sharper, more targeted result.`;
 
+function careerOnly(profile) {
+  if (!profile || typeof profile !== "object") return {};
+  const rest = { ...profile };
+  delete rest.background;
+  delete rest.aboutMe;
+  return rest;
+}
+
 function describeTarget({ jobDescription, target }) {
   if (target && typeof target === "object" && target.role) {
     const lines = [`Role: ${target.role}`];
@@ -249,7 +338,7 @@ function describeTarget({ jobDescription, target }) {
 }
 
 function buildPrompt({ profile, jobDescription, target }) {
-  const profileJson = JSON.stringify(profile, null, 2);
+  const profileJson = JSON.stringify(careerOnly(profile), null, 2);
   const t = describeTarget({ jobDescription, target });
 
   return `${GENERATION_SYSTEM_PROMPT}
@@ -267,8 +356,29 @@ ${t.header}
 ${t.body}`;
 }
 
+function buildCoverLetterOnlyPrompt({ profile, existingCv, jobDescription, target }) {
+  const candidateInfo = existingCv
+    ? `=== CANDIDATE EXISTING CV (RAW TEXT) ===\n${existingCv}\n\n=== CANDIDATE PROFILE SUMMARY ===\n${JSON.stringify(profile ? careerOnly(profile) : {}, null, 2)}`
+    : `=== CANDIDATE CV PROFILE (JSON) ===\n${JSON.stringify(careerOnly(profile), null, 2)}`;
+
+  const t = describeTarget({ jobDescription, target });
+
+  return `${COVER_LETTER_ONLY_SYSTEM_PROMPT}
+
+---
+${t.roleMode ? `\n${ROLE_MODE_INSTRUCTIONS}\n\n---\n` : ""}
+${COVER_LETTER_DELIMITERS_INSTRUCTIONS}
+
+---
+
+${candidateInfo}
+
+${t.header}
+${t.body}`;
+}
+
 function buildRefinePrompt({ profile, jobDescription, target, previousBundle, instruction }) {
-  const profileJson = JSON.stringify(profile, null, 2);
+  const profileJson = JSON.stringify(careerOnly(profile), null, 2);
   const t = describeTarget({ jobDescription, target });
 
   return `${GENERATION_SYSTEM_PROMPT}
@@ -312,6 +422,48 @@ ${t.header}
 ${t.body}`;
 }
 
+function buildRefineCoverLetterPrompt({ profile, existingCv, jobDescription, target, previousBundle, instruction }) {
+  const candidateInfo = existingCv
+    ? `=== CANDIDATE EXISTING CV (RAW TEXT) ===\n${existingCv}\n\n=== CANDIDATE PROFILE SUMMARY ===\n${JSON.stringify(profile ? careerOnly(profile) : {}, null, 2)}`
+    : `=== CANDIDATE CV PROFILE (JSON) ===\n${JSON.stringify(careerOnly(profile), null, 2)}`;
+
+  const t = describeTarget({ jobDescription, target });
+
+  return `${COVER_LETTER_ONLY_SYSTEM_PROMPT}
+
+---
+${t.roleMode ? `\n${ROLE_MODE_INSTRUCTIONS}\n\n---\n` : ""}
+## REFINEMENT MODE
+
+The user has already received the cover letter and ATS report below. They want a SPECIFIC change applied to the cover letter. Apply ONLY what they ask. Preserve everything else as-is unless changing it is necessary for consistency.
+
+After applying the change, output a COMPLETE fresh bundle (Cover letter, ATS report, edit instructions) using the section markers below.
+
+**You MUST re-run the ATS & Match Report against the NEW Cover Letter and existing CV.** Specifically:
+- Re-evaluate required keywords and selling points.
+- **Recompute the Match Score (X/10) from scratch.** Use a single score format: integer (e.g. 8/10) or half (e.g. 7.5/10).
+
+=== PREVIOUS COVER LETTER ===
+${previousBundle.coverLetter}
+
+=== PREVIOUS ATS REPORT ===
+${previousBundle.atsReport}
+
+=== USER REFINEMENT REQUEST ===
+"${instruction}"
+
+---
+
+${COVER_LETTER_DELIMITERS_INSTRUCTIONS}
+
+---
+
+${candidateInfo}
+
+${t.header}
+${t.body}`;
+}
+
 function validateTarget({ jobDescription, target }, minJdLength) {
   if (target !== undefined && target !== null) {
     if (typeof target !== "object" || typeof target.role !== "string" || target.role.trim().length < 2) {
@@ -327,9 +479,8 @@ function validateTarget({ jobDescription, target }, minJdLength) {
   return null;
 }
 
-function parseSections(raw) {
-  const order = ["cv", "atsReport", "coverLetter", "editInstructions"];
-  const positions = order.map((k) => ({ key: k, idx: raw.indexOf(SECTION_MARKERS[k]) }));
+function parseSections(raw, keys = ["cv", "atsReport", "coverLetter", "editInstructions"]) {
+  const positions = keys.map((k) => ({ key: k, idx: raw.indexOf(SECTION_MARKERS[k]) }));
 
   for (const p of positions) {
     if (p.idx === -1) {
@@ -337,11 +488,12 @@ function parseSections(raw) {
     }
   }
 
+  const sorted = [...positions].sort((a, b) => a.idx - b.idx);
   const result = {};
-  for (let i = 0; i < positions.length; i++) {
-    const { key, idx } = positions[i];
+  for (let i = 0; i < sorted.length; i++) {
+    const { key, idx } = sorted[i];
     const start = idx + SECTION_MARKERS[key].length;
-    const end = i + 1 < positions.length ? positions[i + 1].idx : raw.length;
+    const end = i + 1 < sorted.length ? sorted[i + 1].idx : raw.length;
     result[key] = raw.slice(start, end).trim();
   }
   return result;
@@ -372,7 +524,31 @@ async function runQuery(contents, config) {
 }
 
 app.post("/api/generate", async (req, res) => {
-  const { profile, jobDescription, target } = req.body ?? {};
+  const { profile, jobDescription, target, docType, existingCv } = req.body ?? {};
+
+  if (docType === "cover-letter") {
+    const hasProfile = profile && typeof profile === "object";
+    const hasExistingCv = typeof existingCv === "string" && existingCv.trim().length >= 50;
+    if (!hasProfile && !hasExistingCv) {
+      return res.status(400).json({ error: "profile or existingCv (min 50 chars) is required" });
+    }
+    const targetError = validateTarget({ jobDescription, target }, 20);
+    if (targetError) {
+      return res.status(400).json({ error: targetError });
+    }
+
+    try {
+      const raw = await runQuery(buildCoverLetterOnlyPrompt({ profile, existingCv, jobDescription, target }));
+      const sections = parseSections(raw, ["coverLetter", "atsReport", "editInstructions"]);
+      sections.docType = "cover-letter";
+      if (existingCv) sections.existingCv = existingCv;
+      res.json(sections);
+    } catch (err) {
+      console.error("[generate-cover-letter] error:", err);
+      res.status(500).json({ error: err?.message ?? "generation failed" });
+    }
+    return;
+  }
 
   if (!profile || typeof profile !== "object") {
     return res.status(400).json({ error: "profile is required" });
@@ -385,6 +561,7 @@ app.post("/api/generate", async (req, res) => {
   try {
     const raw = await runQuery(buildPrompt({ profile, jobDescription, target }));
     const sections = parseSections(raw);
+    sections.docType = "all";
     res.json(sections);
   } catch (err) {
     console.error("[generate] error:", err);
@@ -460,7 +637,49 @@ app.post("/api/import-cv", async (req, res) => {
 });
 
 app.post("/api/refine", async (req, res) => {
-  const { profile, jobDescription, target, previousBundle, instruction } = req.body ?? {};
+  const { profile, jobDescription, target, previousBundle, instruction, docType, existingCv } = req.body ?? {};
+
+  const effectiveDocType = docType || previousBundle?.docType;
+
+  if (effectiveDocType === "cover-letter") {
+    const hasProfile = profile && typeof profile === "object";
+    const cvText = existingCv || previousBundle?.existingCv;
+    const hasCv = typeof cvText === "string" && cvText.trim().length >= 50;
+    if (!hasProfile && !hasCv) {
+      return res.status(400).json({ error: "profile or existingCv is required" });
+    }
+    const targetError = validateTarget({ jobDescription, target }, 0);
+    if (targetError) {
+      return res.status(400).json({ error: targetError });
+    }
+    if (!previousBundle || typeof previousBundle !== "object" || !previousBundle.coverLetter) {
+      return res.status(400).json({ error: "previousBundle with coverLetter is required" });
+    }
+    if (!instruction || typeof instruction !== "string" || instruction.trim().length < 3) {
+      return res.status(400).json({ error: "instruction must be at least 3 characters" });
+    }
+
+    try {
+      const raw = await runQuery(
+        buildRefineCoverLetterPrompt({
+          profile,
+          existingCv: cvText,
+          jobDescription,
+          target,
+          previousBundle,
+          instruction,
+        }),
+      );
+      const sections = parseSections(raw, ["coverLetter", "atsReport", "editInstructions"]);
+      sections.docType = "cover-letter";
+      if (cvText) sections.existingCv = cvText;
+      res.json(sections);
+    } catch (err) {
+      console.error("[refine-cover-letter] error:", err);
+      res.status(500).json({ error: err?.message ?? "refinement failed" });
+    }
+    return;
+  }
 
   if (!profile || typeof profile !== "object") {
     return res.status(400).json({ error: "profile is required" });
@@ -479,6 +698,7 @@ app.post("/api/refine", async (req, res) => {
   try {
     const raw = await runQuery(buildRefinePrompt({ profile, jobDescription, target, previousBundle, instruction }));
     const sections = parseSections(raw);
+    sections.docType = "all";
     res.json(sections);
   } catch (err) {
     console.error("[refine] error:", err);

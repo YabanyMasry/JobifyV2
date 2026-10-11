@@ -1,16 +1,23 @@
-import type { Profile } from "../types";
+import type { Profile, GenerationDocType } from "../types";
 
 export type GeneratedBundle = {
-  cv: string;
+  cv?: string;
   atsReport: string;
   coverLetter: string;
   editInstructions: string;
+  docType?: GenerationDocType;
+  existingCv?: string;
 };
 
 export type RoleTarget = {
   role: string;
   seniority?: string;
   focus?: string;
+};
+
+export type GenerateOptions = {
+  docType?: GenerationDocType;
+  existingCv?: string;
 };
 
 /** The dossier (background + aboutMe) is chat-only context — keep it out of CV generation. */
@@ -22,15 +29,27 @@ function careerOnly(profile: Profile): Omit<Profile, "background" | "aboutMe"> {
 }
 
 export async function generate(
-  profile: Profile,
+  profile: Profile | null,
   jobDescription: string,
   target?: RoleTarget | null,
+  options?: GenerateOptions,
 ): Promise<GeneratedBundle> {
-  const p = careerOnly(profile);
+  const p = profile ? careerOnly(profile) : undefined;
+  const payload: Record<string, unknown> = {
+    ...(p ? { profile: p } : {}),
+    ...(options?.docType ? { docType: options.docType } : {}),
+    ...(options?.existingCv ? { existingCv: options.existingCv } : {}),
+  };
+  if (target) {
+    payload.target = target;
+  } else {
+    payload.jobDescription = jobDescription;
+  }
+
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(target ? { profile: p, target } : { profile: p, jobDescription }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -42,21 +61,31 @@ export async function generate(
 }
 
 export async function refine(
-  profile: Profile,
+  profile: Profile | null,
   jobDescription: string,
   previousBundle: GeneratedBundle,
   instruction: string,
   target?: RoleTarget | null,
+  options?: GenerateOptions,
 ): Promise<GeneratedBundle> {
-  const p = careerOnly(profile);
+  const p = profile ? careerOnly(profile) : undefined;
+  const payload: Record<string, unknown> = {
+    ...(p ? { profile: p } : {}),
+    previousBundle,
+    instruction,
+    ...(options?.docType ? { docType: options.docType } : {}),
+    ...(options?.existingCv ? { existingCv: options.existingCv } : {}),
+  };
+  if (target) {
+    payload.target = target;
+  } else {
+    payload.jobDescription = jobDescription;
+  }
+
   const res = await fetch("/api/refine", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(
-      target
-        ? { profile: p, target, previousBundle, instruction }
-        : { profile: p, jobDescription, previousBundle, instruction },
-    ),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
